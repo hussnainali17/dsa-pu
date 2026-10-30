@@ -1,0 +1,11 @@
+:root{
+  /* sampled from the DSA seal */
+  --teal-900:#1b3a44; --teal-800:#264a56; --teal-700:#325c69;
+  --gold:#f5c21b; --gold-deep:#d9a21b;
+  --sky:#1fa4dc;
+  --paper:#f5f8f8; --ink:#173038; --muted:#51666d;
+  --font-head:'Bricolage Grotesque',system-ui,sans-serif;
+  --font-body:'Figtree',system-ui,sans-serif;
+  --radius:14px; --ease:cubic-bezier(.2,.7,.2,1);
+}
+:root{--gold-light:#ffd24a;--tint:#eef4f5;--tint-2:#eaf5fa}
