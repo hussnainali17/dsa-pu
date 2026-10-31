@@ -1,24 +1,41 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import PageHead from '../components/PageHead'
 import StudentFields from './StudentFields'
 import Field, { formData, Notice } from '../admin/Field'
-import { useData } from '../admin/store'
-import { societies } from '../data/content'
+import api from '../api'
 
 export default function RegisterSociety() {
-  const { submitSocietyApplication } = useData()
   const [params] = useSearchParams()
   const [picked, setPicked] = useState(params.get('society') || '')
   const [msg, setMsg] = useState(null)
   const [done, setDone] = useState(null)
+  const [societies, setSocieties] = useState([])
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    api.get('/public/societies').then((d) => setSocieties(d.items || [])).catch(() => {})
+  }, [])
+
   const soc = societies.find((s) => s.slug === picked)
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault()
+    setBusy(true)
+    setMsg(null)
     const v = formData(e)
-    const r = submitSocietyApplication({ ...v, society: soc.name, societySlug: soc.slug })
-    if (r.ok) { setDone({ name: v.name, society: soc.name }); e.currentTarget.reset() } else setMsg({ ok: false, text: r.error })
+    try {
+      await api.post('/public/society-applications', {
+        ...v,
+        societyId: soc.id || soc._id,
+        semester: Number(v.semester),
+        website: v.website || '',
+      })
+      setDone({ name: v.name, society: soc.name })
+      e.currentTarget.reset()
+    } catch (err) {
+      setMsg({ ok: false, text: err.message })
+    } finally { setBusy(false) }
   }
 
   if (done) return (
@@ -50,7 +67,8 @@ export default function RegisterSociety() {
             <Field label="Applying as"><select name="applyingAs"><option>General member</option><option>Cabinet position</option></select></Field>
             <Field label="Preferred position (cabinet applicants)"><input name="position" /></Field>
             <Field label="Past experience and achievements (optional)" wide><textarea name="experience" rows="4" /></Field>
-            <button className="btn btn--gold">Submit application</button>
+            <input type="text" name="website" style={{ display: 'none' }} tabIndex={-1} autoComplete="off" />
+            <button className="btn btn--gold" disabled={busy}>{busy ? 'Submitting…' : 'Submit application'}</button>
             <Notice msg={msg} />
           </form>
         )}

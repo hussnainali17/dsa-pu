@@ -1,33 +1,49 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import PageHead from '../components/PageHead'
 import StudentFields from './StudentFields'
 import Field, { formData, Notice } from '../admin/Field'
-import { useData } from '../admin/store'
-import { events as publicEvents } from '../data/content'
-import { eventKey } from '../data/eventKey'
-
-const fmt = (d) => new Date(d + 'T00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+import api from '../api'
 
 export default function RegisterEvent() {
-  const { events: added, submitEventSignup } = useData()
   const [params] = useSearchParams()
   const [picked, setPicked] = useState(params.get('event') || '')
   const [msg, setMsg] = useState(null)
   const [done, setDone] = useState(null)
+  const [events, setEvents] = useState([])
+  const [busy, setBusy] = useState(false)
 
-  // Calendar events plus any events the DSA office has registered.
-  const list = useMemo(() => [
-    ...added.map((e) => ({ key: e.id, name: e.name, date: e.start === e.end ? fmt(e.start) : `${fmt(e.start)} to ${fmt(e.end)}`, note: `${e.society} · ${e.venue}` })),
-    ...publicEvents.filter((e) => !added.some((a) => eventKey(a.name) === eventKey(e.name))).map((e) => ({ key: eventKey(e.name), name: e.name, date: e.date, note: e.note })),
-  ], [added])
+  useEffect(() => {
+    api.get('/public/events').then((d) => setEvents(d.items || [])).catch(() => {})
+  }, [])
+
+  const list = useMemo(() =>
+    events.map((e) => ({
+      key: e.id || e._id,
+      name: e.name,
+      date: e.displayDate || e.dateLabel || '',
+      note: e.note || `${e.society || ''}${e.venue ? ' · ' + e.venue : ''}`,
+    })), [events])
+
   const ev = list.find((e) => e.key === picked)
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault()
+    setBusy(true)
+    setMsg(null)
     const v = formData(e)
-    const r = submitEventSignup({ ...v, eventKey: ev.key, eventName: ev.name })
-    if (r.ok) { setDone({ name: v.name, event: ev.name }); e.currentTarget.reset() } else setMsg({ ok: false, text: r.error })
+    try {
+      await api.post('/public/event-signups', {
+        ...v,
+        eventId: ev.key,
+        semester: Number(v.semester),
+        website: v.website || '',
+      })
+      setDone({ name: v.name, event: ev.name })
+      e.currentTarget.reset()
+    } catch (err) {
+      setMsg({ ok: false, text: err.message })
+    } finally { setBusy(false) }
   }
 
   if (done) return (
@@ -58,7 +74,8 @@ export default function RegisterEvent() {
             <StudentFields />
             <Field label="Role"><select name="role"><option>Participant</option><option>Team member</option><option>Volunteer</option></select></Field>
             <Field label="Competition category (optional)"><input name="category" /></Field>
-            <button className="btn btn--gold">Submit registration</button>
+            <input type="text" name="website" style={{ display: 'none' }} tabIndex={-1} autoComplete="off" />
+            <button className="btn btn--gold" disabled={busy}>{busy ? 'Submitting…' : 'Submit registration'}</button>
             <Notice msg={msg} />
           </form>
         )}

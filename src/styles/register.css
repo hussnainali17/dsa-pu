@@ -28,3 +28,9 @@
 .reg-result blockquote{background:var(--tint);border-radius:10px;padding:1rem}
 .adm-pill{display:inline-block;padding:.15rem .65rem;border-radius:999px;font-size:.82rem;font-weight:600}
 .adm-pill--new{background:#dff1fb;color:#0d5b82}.adm-pill--inreview{background:#fff3cc;color:#7a5b00}.adm-pill--resolved{background:#e6f5ec;color:#1b5e38}.adm-pill--closed{background:#e6ecee;color:#3f535a}
+.complaints-page,.complaints-page .adm-form,.complaints-page .reg-result,.complaints-page .adm-field{min-width:0}
+.complaints-page .reg-form,.complaints-page .reg-result{width:100%;max-width:820px}
+.complaints-page .adm-field input,.complaints-page .adm-field select,.complaints-page .adm-field textarea{width:100%;min-width:0;max-width:100%}
+.complaints-page .reg-result p,.complaints-page .reg-result blockquote{overflow-wrap:anywhere}
+.complaints-page .ref{white-space:normal;overflow-wrap:anywhere}
+@media (max-width:480px){.complaints-page .adm-form,.complaints-page .reg-result{padding:1rem}}

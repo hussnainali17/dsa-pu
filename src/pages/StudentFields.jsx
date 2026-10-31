@@ -10,7 +10,7 @@ export default function StudentFields({ deptLabel = 'Department' }) {
       <Field label="Programme"><select name="programme"><option>BS</option><option>MA / MSc</option><option>MPhil</option><option>PhD</option></select></Field>
       <Field label="Semester"><input name="semester" type="number" min="1" max="12" required /></Field>
       <Field label="University email"><input name="email" type="email" autoComplete="email" required /></Field>
-      <Field label="Mobile number"><input name="phone" type="tel" autoComplete="tel" required /></Field>
+      <Field label="Mobile number"><input name="phone" type="tel" autoComplete="tel" placeholder="e.g. 03001234567" required /></Field>
     </>
   )
 }

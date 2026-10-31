@@ -1,63 +1,148 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import api from '../api'
 
 const Ctx = createContext(null)
 export const useData = () => useContext(Ctx)
-const KEY = 'dsa-admin-data'
-const id = () => crypto.randomUUID()
-
-// Synthetic sample data. Never put real student records in source code.
-const seed = () => ({
-  events: [
-    { id: id(), name: 'Zero Week Orientation 2026', society: 'DSA', level: 'University', start: '2026-09-07', end: '2026-09-11', venue: 'University of the Punjab' },
-    { id: id(), name: 'DSA Co-curricular Admissions Trials 2026', society: 'DSA', level: 'University', start: '2026-08-18', end: '2026-08-20', venue: 'University of the Punjab' },
-  ],
-  students: [
-    { id: id(), name: 'Sample Student One', regNo: 'SYN-0001', department: 'Mass Communication', programme: 'BS', semester: '3' },
-    { id: id(), name: 'Sample Student Two', regNo: 'SYN-0002', department: 'English', programme: 'BS', semester: '5' },
-  ],
-  registrations: [],
-  eventSignups: [],        // submitted by students on the public site
-  societyApplications: [], // submitted by students on the public site
-  complaints: [],          // submitted on the public site, answered by admins
-})
 
 export function DataProvider({ children }) {
-  const [db, setDb] = useState(() => { try { return { ...seed(), ...JSON.parse(localStorage.getItem(KEY)) } } catch { return seed() } })
-  useEffect(() => { try { localStorage.setItem(KEY, JSON.stringify(db)) } catch {} }, [db])
+  const [events, setEvents] = useState([])
+  const [students, setStudents] = useState([])
+  const [registrations, setRegistrations] = useState([])
+  const [eventSignups, setEventSignups] = useState([])
+  const [societyApplications, setSocietyApplications] = useState([])
+  const [complaints, setComplaints] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  // Each action returns { ok, error } so pages can show feedback. Replace with API calls later.
-  const addEvent = (e) => { setDb((d) => ({ ...d, events: [{ id: id(), ...e }, ...d.events] })); return { ok: true } }
-  const removeEvent = (eid) => setDb((d) => ({ ...d, events: d.events.filter((e) => e.id !== eid), registrations: d.registrations.filter((r) => r.eventId !== eid) }))
-  const addStudent = (s) => {
-    if (db.students.some((x) => x.regNo.toLowerCase() === s.regNo.toLowerCase())) return { ok: false, error: 'A student with this registration number already exists.' }
-    setDb((d) => ({ ...d, students: [{ id: id(), ...s }, ...d.students] })); return { ok: true }
+  // ── Fetch helpers ──
+  const loadEvents = useCallback(() =>
+    api.get('/admin/events').then((d) => setEvents(d.items || [])).catch(() => {}), [])
+  const loadStudents = useCallback(() =>
+    api.get('/admin/students').then((d) => setStudents(d.items || [])).catch(() => {}), [])
+  const loadRegistrations = useCallback(() =>
+    api.get('/admin/registrations').then((d) => setRegistrations(d.items || [])).catch(() => {}), [])
+  const loadSignups = useCallback(() =>
+    api.get('/admin/event-signups').then((d) => setEventSignups(d.items || [])).catch(() => {}), [])
+  const loadApplications = useCallback(() =>
+    api.get('/admin/society-applications').then((d) => setSocietyApplications(d.items || [])).catch(() => {}), [])
+  const loadComplaints = useCallback(() =>
+    api.get('/admin/complaints').then((d) => setComplaints(d.items || [])).catch(() => {}), [])
+
+  const loadAll = useCallback(async () => {
+    setLoading(true)
+    await Promise.all([loadEvents(), loadStudents(), loadRegistrations(), loadSignups(), loadApplications(), loadComplaints()])
+    setLoading(false)
+  }, [loadEvents, loadStudents, loadRegistrations, loadSignups, loadApplications, loadComplaints])
+
+  useEffect(() => { loadAll() }, [loadAll])
+
+  // ── Actions — keep the same { ok, error } return shape ──
+
+  const addEvent = async (e) => {
+    try { await api.post('/admin/events', e); await loadEvents(); return { ok: true } }
+    catch (err) { return { ok: false, error: err.message } }
   }
-  const removeStudent = (sid) => setDb((d) => ({ ...d, students: d.students.filter((s) => s.id !== sid), registrations: d.registrations.filter((r) => r.studentId !== sid) }))
-  const register = (eventId, studentId, role, category) => {
-    if (db.registrations.some((r) => r.eventId === eventId && r.studentId === studentId)) return { ok: false, error: 'This student is already registered for the event.' }
-    setDb((d) => ({ ...d, registrations: [{ id: id(), eventId, studentId, role, category, at: new Date().toISOString() }, ...d.registrations] })); return { ok: true }
+
+  const removeEvent = async (eid) => {
+    try { await api.del(`/admin/events/${eid}`); await Promise.all([loadEvents(), loadRegistrations()]); return { ok: true } }
+    catch (err) { return { ok: false, error: err.message } }
   }
-  const unregister = (rid) => setDb((d) => ({ ...d, registrations: d.registrations.filter((r) => r.id !== rid) }))
-  // Public student submissions. Replace with API calls later.
-  const norm = (v) => String(v || '').trim().toLowerCase()
-  const submitEventSignup = (f) => {
-    if (db.eventSignups.some((x) => x.eventKey === f.eventKey && norm(x.regNo) === norm(f.regNo))) return { ok: false, error: 'This registration number is already registered for this event.' }
-    setDb((d) => ({ ...d, eventSignups: [{ id: id(), status: 'Pending', at: new Date().toISOString(), ...f }, ...d.eventSignups] })); return { ok: true }
+
+  const addStudent = async (s) => {
+    try { await api.post('/admin/students', s); await loadStudents(); return { ok: true } }
+    catch (err) { return { ok: false, error: err.message } }
   }
-  const submitSocietyApplication = (f) => {
-    if (db.societyApplications.some((x) => x.society === f.society && norm(x.regNo) === norm(f.regNo))) return { ok: false, error: 'This registration number has already applied to this society.' }
-    setDb((d) => ({ ...d, societyApplications: [{ id: id(), status: 'Pending', at: new Date().toISOString(), ...f }, ...d.societyApplications] })); return { ok: true }
+
+  const removeStudent = async (sid) => {
+    try { await api.del(`/admin/students/${sid}`); await Promise.all([loadStudents(), loadRegistrations()]); return { ok: true } }
+    catch (err) { return { ok: false, error: err.message } }
   }
-  // Complaints. ref is the number the student keeps to check progress.
-  const submitComplaint = (f) => {
-    const n = db.complaints.reduce((m, c) => Math.max(m, Number(c.ref.split('-')[2]) || 0), 0) + 1
-    const ref = `CMP-${new Date().getFullYear()}-${String(n).padStart(4, '0')}`
-    setDb((d) => ({ ...d, complaints: [{ id: id(), ref, status: 'New', at: new Date().toISOString(), response: '', ...f }, ...d.complaints] }))
-    return { ok: true, ref }
+
+  const register = async (eventId, studentId, role, category) => {
+    try { await api.post('/admin/registrations', { eventId, studentId, role, category: category || '' }); await loadRegistrations(); return { ok: true } }
+    catch (err) { return { ok: false, error: err.message } }
   }
-  const findComplaint = (ref, regNo) => db.complaints.find((c) => c.ref.toLowerCase() === norm(ref) && norm(c.regNo) === norm(regNo))
-  const respondComplaint = (cid, status, response, by) => setDb((d) => ({ ...d, complaints: d.complaints.map((c) => (c.id === cid ? { ...c, status, response, respondedBy: by, respondedAt: response ? new Date().toISOString() : c.respondedAt } : c)) }))
-  const setStatus = (list, sid, status) => setDb((d) => ({ ...d, [list]: d[list].map((x) => (x.id === sid ? { ...x, status } : x)) }))
-  const removeSubmission = (list, sid) => setDb((d) => ({ ...d, [list]: d[list].filter((x) => x.id !== sid) }))
-  return <Ctx.Provider value={{ ...db, addEvent, removeEvent, addStudent, removeStudent, register, unregister, submitEventSignup, submitSocietyApplication, submitComplaint, findComplaint, respondComplaint, setStatus, removeSubmission }}>{children}</Ctx.Provider>
+
+  const unregister = async (rid) => {
+    try { await api.del(`/admin/registrations/${rid}`); await loadRegistrations(); return { ok: true } }
+    catch (err) { return { ok: false, error: err.message } }
+  }
+
+  // Public submissions — these now go through admin endpoints when viewed from admin panel
+  const submitEventSignup = async (f) => {
+    try { await api.post('/public/event-signups', f); return { ok: true } }
+    catch (err) { return { ok: false, error: err.message } }
+  }
+
+  const submitSocietyApplication = async (f) => {
+    try { await api.post('/public/society-applications', f); return { ok: true } }
+    catch (err) { return { ok: false, error: err.message } }
+  }
+
+  const submitComplaint = async (f) => {
+    try { const data = await api.post('/public/complaints', f); return { ok: true, ref: data.ref } }
+    catch (err) { return { ok: false, error: err.message } }
+  }
+
+  const findComplaint = async (ref, regNo) => {
+    try {
+      const data = await api.post('/public/complaints/track', { ref, regNo })
+      return data.complaint
+    } catch { return null }
+  }
+
+  const respondComplaint = async (cid, status, response, by) => {
+    try { await api.patch(`/admin/complaints/${cid}`, { status, response }); await loadComplaints(); return { ok: true } }
+    catch (err) { return { ok: false, error: err.message } }
+  }
+
+  const setStatus = async (list, sid, status) => {
+    try {
+      const endpoint = list === 'eventSignups' ? 'event-signups' : 'society-applications'
+      await api.patch(`/admin/${endpoint}/${sid}/status`, { status })
+      if (list === 'eventSignups') await loadSignups(); else await loadApplications()
+      return { ok: true }
+    } catch (err) { return { ok: false, error: err.message } }
+  }
+
+  const approveSignup = async (sid) => {
+    try {
+      await api.post(`/admin/event-signups/${sid}/approve`)
+      await Promise.all([loadSignups(), loadStudents(), loadRegistrations()])
+      return { ok: true }
+    } catch (err) { return { ok: false, error: err.message } }
+  }
+
+  const removeSubmission = async (list, sid) => {
+    try {
+      const endpoint = list === 'eventSignups' ? 'event-signups' : 'society-applications'
+      await api.del(`/admin/${endpoint}/${sid}`)
+      if (list === 'eventSignups') await loadSignups(); else await loadApplications()
+      return { ok: true }
+    } catch (err) { return { ok: false, error: err.message } }
+  }
+
+  const getComplaintDetail = async (cid) => {
+    try {
+      const data = await api.get(`/admin/complaints/${cid}`)
+      return data.complaint
+    } catch { return null }
+  }
+
+  return (
+    <Ctx.Provider
+      value={{
+        events, students, registrations, eventSignups, societyApplications, complaints,
+        loading, loadAll,
+        addEvent, removeEvent,
+        addStudent, removeStudent,
+        register, unregister,
+        submitEventSignup, submitSocietyApplication,
+        submitComplaint, findComplaint,
+        respondComplaint, setStatus, removeSubmission,
+        approveSignup, getComplaintDetail,
+      }}
+    >
+      {children}
+    </Ctx.Provider>
+  )
 }

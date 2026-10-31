@@ -6,14 +6,17 @@ export default function StudentsAdmin() {
   const { students, addStudent, removeStudent } = useData()
   const [msg, setMsg] = useState(null)
   const [q, setQ] = useState('')
-  const submit = (e) => {
+
+  const submit = async (e) => {
     e.preventDefault()
     const v = formData(e)
-    const r = addStudent(v)
+    const r = await addStudent({ ...v, semester: Number(v.semester) })
     if (r.ok) e.currentTarget.reset()
     setMsg({ ok: r.ok, text: r.ok ? `${v.name} registered.` : r.error })
   }
+
   const shown = students.filter((s) => `${s.name} ${s.regNo} ${s.department}`.toLowerCase().includes(q.toLowerCase()))
+
   return (
     <>
       <h1>Students</h1>
@@ -34,8 +37,10 @@ export default function StudentsAdmin() {
           <thead><tr><th>Name</th><th>Reg. no.</th><th>Department</th><th>Programme</th><th>Sem.</th><th></th></tr></thead>
           <tbody>{shown.map((s) => (
             <tr key={s.id}><td>{s.name}</td><td>{s.regNo}</td><td>{s.department}</td><td>{s.programme}</td><td>{s.semester}</td>
-              <td><button className="adm-del" onClick={() => confirm(`Delete ${s.name} and their event registrations?`) && removeStudent(s.id)}>Delete</button></td></tr>
-          ))}</tbody></table></div>
+              <td><button className="adm-del" onClick={() => window.confirm(`Delete ${s.name} and their event registrations?`) && removeStudent(s.id)}>Delete</button></td>
+            </tr>
+          ))}</tbody>
+        </table></div>
       )}
     </>
   )
